@@ -52,10 +52,12 @@ const SLOT_MASK = [
   <span class="inline-flex items-baseline">
     <span v-for="(char, i) in chars" :key="i" class="inline-block">
 
-      <!-- Digit slot: overflow-hidden + gradient mask clips the roll -->
+      <!-- Digit slot: clip-path clips the roll without shifting the text baseline.
+           overflow:hidden would move the inline-block baseline to its bottom edge,
+           misaligning digits with surrounding unit letters. -->
       <span
         v-if="isDigit(char)"
-        class="an-slot relative inline-block overflow-hidden"
+        class="an-slot relative inline-block"
         :style="{ maskImage: SLOT_MASK, WebkitMaskImage: SLOT_MASK }"
       >
         <!--
@@ -81,6 +83,11 @@ const SLOT_MASK = [
 <style>
 /* Global (not scoped) so @keyframes names are stable.
    Class names are prefixed with "an-" to avoid collisions. */
+
+/* clip-path clips the rolling digit without changing the inline-block baseline.
+   overflow:hidden would shift the baseline to the bottom edge, causing number/letter misalignment. */
+.an-slot { clip-path: inset(0); }
+
 @keyframes an-roll-up-in {
   from { transform: translateY(100%); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
