@@ -1,7 +1,7 @@
 FROM node:lts-alpine AS buildernodejscache
 ADD ui/package.json /app/package.json
 WORKDIR /app
-RUN npm i
+RUN npm i --legacy-peer-deps
 
 FROM node:lts-alpine AS buildernodejs
 ADD ui /app
