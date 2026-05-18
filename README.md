@@ -7,7 +7,7 @@ Language: English | [简体中文](README_zh_CN.md)
 
 ## Quick start
 ```
-docker run -d --name looking-glass --restart always --network host wikihostinc/looking-glass-server
+docker run -d --name looking-glass --restart always --network host hayneschen/als
 ```
 
 [DEMO](http://lg.hk1-bgp.hkg.50network.com/)
@@ -27,7 +27,7 @@ docker run -d \
     -e HTTP_PORT=8080 \
     --restart always \
     --network host \
-    wikihostinc/looking-glass-server
+    hayneschen/als
 ``` 
 
 ## Environment variable table
