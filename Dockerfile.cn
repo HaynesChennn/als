@@ -40,4 +40,4 @@ LABEL maintainer="samlm0 <update@ifdream.net>"
 COPY --from=builderenv / /
 COPY --from=buildergolang --chmod=777 /app/als/als /bin/als
 
-CMD /bin/als
+CMD ["/bin/als"]
