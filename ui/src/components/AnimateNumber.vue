@@ -1,17 +1,15 @@
 <script setup>
 /**
  * Slot-machine digit roller inspired by MotionNumber (motion-number.barvian.me).
- * Each digit independently springs up/down; a gradient mask fades the entry/exit
- * edges so digits appear to roll out of a slot rather than hard-clip.
- * Updates are throttled so rapid data bursts don't cause visual flashing.
+ * Uses Vue's native <Transition> for enter/leave (more reliable than motion-v
+ * AnimatePresence in Vue context). Gradient mask fades the slot edges.
  */
-import { motion, AnimatePresence } from 'motion-v'
 
 const props = defineProps({
   value:     { type: Number, required: true },
   format:    { type: Function, default: (v) => v.toFixed(0) },
-  stiffness: { type: Number, default: 100 },
-  damping:   { type: Number, default: 20 },
+  stiffness: { type: Number, default: 100 },  // kept for API compatibility
+  damping:   { type: Number, default: 20 },   // kept for API compatibility
   interval:  { type: Number, default: 1000 },
 })
 
@@ -38,8 +36,6 @@ onUnmounted(() => clearTimeout(timer))
 const chars = computed(() => props.format(Math.max(0, displayed.value)).split(''))
 const isDigit = (c) => c >= '0' && c <= '9'
 
-// Gradient that fades the top/bottom edges of each digit slot.
-// Using a fixed 3 px fade zone works across all text sizes (10 px – 48 px).
 const SLOT_MASK = [
   'linear-gradient(to bottom,',
   '  transparent 0,',
@@ -48,43 +44,43 @@ const SLOT_MASK = [
   '  transparent 100%',
   ')',
 ].join(' ')
+
+// Transition name drives CSS class selection — changes before re-render
+const transitionName = computed(() => direction.value >= 0 ? 'digit-up' : 'digit-down')
 </script>
 
 <template>
-  <!--
-    items-baseline keeps digit slots and unit letters on the same text baseline.
-    tabular-nums is inherited from the parent so digit widths stay stable.
-  -->
   <span class="inline-flex items-baseline">
     <span v-for="(char, i) in chars" :key="i" class="inline-block">
 
-      <!-- ── Digit slot ── -->
+      <!-- Digit slot: Vue Transition handles enter/leave, CSS drives the roll -->
       <span
         v-if="isDigit(char)"
-        class="relative inline-block overflow-hidden"
-        :style="{
-          maskImage: SLOT_MASK,
-          WebkitMaskImage: SLOT_MASK,
-        }"
+        class="digit-slot relative inline-block overflow-hidden"
+        :style="{ maskImage: SLOT_MASK, WebkitMaskImage: SLOT_MASK }"
       >
-        <AnimatePresence mode="popLayout" :initial="false">
-          <motion.span
-            :key="char"
-            :initial="{ y: direction >= 0 ? '100%' : '-100%', opacity: 0 }"
-            :animate="{ y: '0%', opacity: 1 }"
-            :exit="{ y: direction >= 0 ? '-100%' : '100%', opacity: 0 }"
-            :transition="{
-              y:       { type: 'spring', stiffness: stiffness, damping: damping },
-              opacity: { duration: 0.15, ease: 'easeOut' },
-            }"
-            class="block"
-          >{{ char }}</motion.span>
-        </AnimatePresence>
+        <Transition :name="transitionName">
+          <span :key="`${i}-${char}`" class="block">{{ char }}</span>
+        </Transition>
       </span>
 
-      <!-- ── Non-digit (., space, unit letters) — static ── -->
+      <!-- Non-digit (., space, unit letters) — static -->
       <template v-else>{{ char }}</template>
 
     </span>
   </span>
 </template>
+
+<style scoped>
+/* Increasing: old digit exits upward, new digit enters from below */
+.digit-up-enter-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-out; }
+.digit-up-leave-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-in 0.3s; position: absolute; top: 0; left: 0; right: 0; }
+.digit-up-enter-from   { transform: translateY(100%); opacity: 0; }
+.digit-up-leave-to     { transform: translateY(-100%); opacity: 0; }
+
+/* Decreasing: old digit exits downward, new digit enters from above */
+.digit-down-enter-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-out; }
+.digit-down-leave-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-in 0.3s; position: absolute; top: 0; left: 0; right: 0; }
+.digit-down-enter-from   { transform: translateY(-100%); opacity: 0; }
+.digit-down-leave-to     { transform: translateY(100%); opacity: 0; }
+</style>
