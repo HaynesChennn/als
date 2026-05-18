@@ -1,20 +1,21 @@
 <script setup>
 /**
- * Slot-machine digit roller inspired by MotionNumber (motion-number.barvian.me).
- * Uses Vue's native <Transition> for enter/leave (more reliable than motion-v
- * AnimatePresence in Vue context). Gradient mask fades the slot edges.
+ * Slot-machine digit roller.
+ * Uses :key trick to force element recreation, triggering CSS @keyframes.
+ * This avoids Vue <Transition> scoped-CSS class-name mismatch which breaks
+ * the animation and leaves digits stuck off-screen (invisible).
  */
 
 const props = defineProps({
   value:     { type: Number, required: true },
   format:    { type: Function, default: (v) => v.toFixed(0) },
-  stiffness: { type: Number, default: 100 },  // kept for API compatibility
-  damping:   { type: Number, default: 20 },   // kept for API compatibility
-  interval:  { type: Number, default: 1000 },
+  stiffness: { type: Number, default: 100 },  // API compat — unused
+  damping:   { type: Number, default: 20 },   // API compat — unused
+  interval:  { type: Number, default: 500 },
 })
 
 const displayed = ref(props.value)
-const direction = ref(0)  // 1 = increasing, -1 = decreasing
+const direction = ref(0)   // 1 = increasing, -1 = decreasing, 0 = no change
 let timer = null
 let lastUpdate = 0
 
@@ -36,32 +37,38 @@ onUnmounted(() => clearTimeout(timer))
 const chars = computed(() => props.format(Math.max(0, displayed.value)).split(''))
 const isDigit = (c) => c >= '0' && c <= '9'
 
+// Gradient fades the top/bottom 3 px of each digit slot — creates the
+// "rolling out of a slot" look without needing exit animations.
 const SLOT_MASK = [
   'linear-gradient(to bottom,',
   '  transparent 0,',
   '  black 3px,',
   '  black calc(100% - 3px),',
-  '  transparent 100%',
-  ')',
+  '  transparent 100%)',
 ].join(' ')
-
-// Transition name drives CSS class selection — changes before re-render
-const transitionName = computed(() => direction.value >= 0 ? 'digit-up' : 'digit-down')
 </script>
 
 <template>
   <span class="inline-flex items-baseline">
     <span v-for="(char, i) in chars" :key="i" class="inline-block">
 
-      <!-- Digit slot: Vue Transition handles enter/leave, CSS drives the roll -->
+      <!-- Digit slot: overflow-hidden + gradient mask clips the roll -->
       <span
         v-if="isDigit(char)"
-        class="digit-slot relative inline-block overflow-hidden"
+        class="an-slot relative inline-block overflow-hidden"
         :style="{ maskImage: SLOT_MASK, WebkitMaskImage: SLOT_MASK }"
       >
-        <Transition :name="transitionName">
-          <span :key="`${i}-${char}`" class="block">{{ char }}</span>
-        </Transition>
+        <!--
+          :key changes when char changes → Vue destroys old element and mounts
+          a new one → CSS @keyframe plays automatically on mount.
+          direction is baked into the class, not the key, so the same digit
+          at the same position doesn't re-animate unless the char changes.
+        -->
+        <span
+          :key="`${i}-${char}`"
+          :class="direction >= 0 ? 'an-roll-up' : 'an-roll-down'"
+          class="block"
+        >{{ char }}</span>
       </span>
 
       <!-- Non-digit (., space, unit letters) — static -->
@@ -71,16 +78,17 @@ const transitionName = computed(() => direction.value >= 0 ? 'digit-up' : 'digit
   </span>
 </template>
 
-<style scoped>
-/* Increasing: old digit exits upward, new digit enters from below */
-.digit-up-enter-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-out; }
-.digit-up-leave-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-in 0.3s; position: absolute; top: 0; left: 0; right: 0; }
-.digit-up-enter-from   { transform: translateY(100%); opacity: 0; }
-.digit-up-leave-to     { transform: translateY(-100%); opacity: 0; }
-
-/* Decreasing: old digit exits downward, new digit enters from above */
-.digit-down-enter-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-out; }
-.digit-down-leave-active { transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.15s ease-in 0.3s; position: absolute; top: 0; left: 0; right: 0; }
-.digit-down-enter-from   { transform: translateY(-100%); opacity: 0; }
-.digit-down-leave-to     { transform: translateY(100%); opacity: 0; }
+<style>
+/* Global (not scoped) so @keyframes names are stable.
+   Class names are prefixed with "an-" to avoid collisions. */
+@keyframes an-roll-up-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes an-roll-down-in {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.an-roll-up   { animation: an-roll-up-in   0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.an-roll-down { animation: an-roll-down-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 </style>
