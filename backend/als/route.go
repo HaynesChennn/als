@@ -2,7 +2,9 @@ package als
 
 import (
 	"io/fs"
+	"mime"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samlm0/als/v2/als/controller"
@@ -80,12 +82,15 @@ func SetupHttpRoute(e *gin.Engine) {
 func handleStatisFile(filePath string, c *gin.Context) {
 	uiFs := iEmbed.UIStaticFiles
 	subFs, _ := fs.Sub(uiFs, "ui")
-	httpFs := http.FileServer(http.FS(subFs))
-	_, err := fs.ReadFile(subFs, filePath)
+	data, err := fs.ReadFile(subFs, filePath)
 	if err != nil {
 		c.String(404, "Not found")
 		c.Abort()
 		return
 	}
-	httpFs.ServeHTTP(c.Writer, c.Request)
+	contentType := mime.TypeByExtension(filepath.Ext(filePath))
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	c.Data(http.StatusOK, contentType, data)
 }
