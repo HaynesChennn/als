@@ -42,12 +42,14 @@ const handleCache = (e) => {
     const d = data[idx]; const name = d.InterfaceName
     if (!interfaces.value[name]) createIface(name)
     const iface = interfaces.value[name]
+    // Reset baseline on every cache event so SSE reconnects don't produce stale deltas
+    iface.lastReceive = 0; iface.lastSend = 0
     for (const pt of d.Caches) {
       iface.receive = +pt[1]; iface.send = +pt[2]
       if (!iface.lastReceive) iface.lastReceive = iface.receive
       if (!iface.lastSend) iface.lastSend = iface.send
-      const rx = iface.receive - iface.lastReceive
-      const tx = iface.send - iface.lastSend
+      const rx = Math.max(0, iface.receive - iface.lastReceive)
+      const tx = Math.max(0, iface.send - iface.lastSend)
       iface.lastReceive = iface.receive; iface.lastSend = iface.send
       pushPoint(name, rx, tx, ts(new Date(+pt[0] * 1000)))
     }
@@ -59,6 +61,9 @@ const handleTraffic = (e) => {
   if (!interfaces.value[name]) createIface(name)
   const iface = interfaces.value[name]
   iface.receive = +rxRaw; iface.send = +txRaw
+  // Reset baseline if counter wrapped / server restarted
+  if (iface.receive < iface.lastReceive) iface.lastReceive = iface.receive
+  if (iface.send < iface.lastSend) iface.lastSend = iface.send
   if (!iface.lastReceive) iface.lastReceive = iface.receive
   if (!iface.lastSend) iface.lastSend = iface.send
   const rx = iface.receive - iface.lastReceive
@@ -67,13 +72,17 @@ const handleTraffic = (e) => {
   pushPoint(name, rx, tx, ts(new Date(+time * 1000)))
 }
 
-onMounted(() => {
-  appStore.source.addEventListener('InterfaceCache', handleCache)
-  appStore.source.addEventListener('InterfaceTraffic', handleTraffic)
-})
-onUnmounted(() => {
-  appStore.source.removeEventListener('InterfaceCache', handleCache)
-  appStore.source.removeEventListener('InterfaceTraffic', handleTraffic)
+// watchEffect re-registers listeners whenever appStore.source changes (SSE reconnect).
+// onMounted/onUnmounted would leave listeners on the old dead EventSource after reconnect.
+watchEffect((onCleanup) => {
+  const src = appStore.source
+  if (!src) return
+  src.addEventListener('InterfaceCache', handleCache)
+  src.addEventListener('InterfaceTraffic', handleTraffic)
+  onCleanup(() => {
+    src.removeEventListener('InterfaceCache', handleCache)
+    src.removeEventListener('InterfaceTraffic', handleTraffic)
+  })
 })
 </script>
 
